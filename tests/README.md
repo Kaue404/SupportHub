@@ -25,6 +25,8 @@ End-to-end tests build the app and start a temporary production server at `http:
 
 Tests use fictional data. Authentication is currently a demo: tests verify that the interface discloses this, without assuming that accounts are created or emails are sent.
 
+The ticket dashboard is available at `/home`, including through the brand link on the access page. Ticket changes are saved locally in the browser, without a backend. Dashboard tests cover search, combined status and priority filters, pagination, browser history, conversation previews, creation validation, priority changes, resolution, and persistence. The URL uses `q`, `status`, `priority`, and `page` to restore the current view. Unit tests also cover invalid stored data and storage failures.
+
 ## Permanent rule
 
 New features, behavior changes, and fixes must include relevant unit and end-to-end tests. Add a regression test when fixing a bug. Write test names in English and query elements by labels, roles, and accessible names. Avoid relying on style classes or internal implementation details.

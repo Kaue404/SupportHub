@@ -8,4 +8,7 @@ it("separates Support and Hub in the brand name", () => {
   expect(
     screen.getByRole("link", { name: "Support Hub — home" })
   ).toHaveTextContent("Support Hub")
+  expect(
+    screen.getByRole("link", { name: "Support Hub — home" })
+  ).toHaveAttribute("href", "/home")
 })

@@ -12,6 +12,20 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
+import {
+  Field,
+  FieldLabel,
+  FieldDescription,
+  FieldError,
+} from "@/components/ui/field"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  InputGroupButton,
+} from "@/components/ui/input-group"
+import { Separator } from "@/components/ui/separator"
+
 type FormMode = "login" | "register" | "recovery"
 
 const content = {
@@ -81,11 +95,13 @@ export function AuthForm() {
         {mode !== "recovery" && <span>.</span>}
       </h2>
       <form key={mode} onSubmit={handleSubmit} className="auth-form">
-        <div className="field-group">
-          <label htmlFor="email">Email</label>
-          <div className="field-input">
-            <Mail size={18} aria-hidden="true" />
-            <input
+        <Field className="field-group">
+          <FieldLabel htmlFor="email">Email</FieldLabel>
+          <InputGroup className="field-input">
+            <InputGroupAddon>
+              <Mail size={18} aria-hidden="true" />
+            </InputGroupAddon>
+            <InputGroupInput
               id="email"
               name="email"
               type="email"
@@ -94,25 +110,28 @@ export function AuthForm() {
               maxLength={254}
               required
             />
-          </div>
-        </div>
+          </InputGroup>
+        </Field>
         {mode !== "recovery" && (
-          <div className="field-group">
+          <Field className="field-group">
             <div className="field-label">
-              <label htmlFor="password">Password</label>
+              <FieldLabel htmlFor="password">Password</FieldLabel>
               {mode === "login" && (
-                <button
+                <Button
+                  variant="link"
                   type="button"
                   className="text-link"
                   onClick={() => changeMode("recovery")}
                 >
                   Forgot your password?
-                </button>
+                </Button>
               )}
             </div>
-            <div className="field-input">
-              <LockKeyhole size={18} aria-hidden="true" />
-              <input
+            <InputGroup className="field-input">
+              <InputGroupAddon>
+                <LockKeyhole size={18} aria-hidden="true" />
+              </InputGroupAddon>
+              <InputGroupInput
                 id="password"
                 name="password"
                 type={showPassword ? "text" : "password"}
@@ -128,29 +147,35 @@ export function AuthForm() {
                   mode === "register" ? "password-hint" : undefined
                 }
               />
-              <button
-                type="button"
-                className="password-toggle"
-                aria-label={showPassword ? "Hide password" : "Show password"}
-                aria-pressed={showPassword}
-                onClick={() => setShowPassword(!showPassword)}
-              >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
-            </div>
+              <InputGroupAddon align="inline-end">
+                <InputGroupButton
+                  type="button"
+                  className="password-toggle"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </InputGroupButton>
+              </InputGroupAddon>
+            </InputGroup>
             {mode === "register" && (
-              <p id="password-hint" className="field-hint">
+              <FieldDescription id="password-hint" className="field-hint">
                 Use at least 8 characters.
-              </p>
+              </FieldDescription>
             )}
-          </div>
+          </Field>
         )}
         {mode === "register" && (
-          <div className="field-group">
-            <label htmlFor="confirm-password">Confirm password</label>
-            <div className={`field-input ${error ? "field-invalid" : ""}`}>
-              <LockKeyhole size={18} aria-hidden="true" />
-              <input
+          <Field className="field-group">
+            <FieldLabel htmlFor="confirm-password">Confirm password</FieldLabel>
+            <InputGroup
+              className={`field-input ${error ? "field-invalid" : ""}`}
+            >
+              <InputGroupAddon>
+                <LockKeyhole size={18} aria-hidden="true" />
+              </InputGroupAddon>
+              <InputGroupInput
                 id="confirm-password"
                 name="confirmPassword"
                 type={showConfirmation ? "text" : "password"}
@@ -165,26 +190,28 @@ export function AuthForm() {
                   setMessage("")
                 }}
               />
-              <button
-                type="button"
-                className="password-toggle"
-                aria-label={
-                  showConfirmation
-                    ? "Hide password confirmation"
-                    : "Show password confirmation"
-                }
-                aria-pressed={showConfirmation}
-                onClick={() => setShowConfirmation(!showConfirmation)}
-              >
-                {showConfirmation ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
-            </div>
-          </div>
+              <InputGroupAddon align="inline-end">
+                <InputGroupButton
+                  type="button"
+                  className="password-toggle"
+                  aria-label={
+                    showConfirmation
+                      ? "Hide password confirmation"
+                      : "Show password confirmation"
+                  }
+                  aria-pressed={showConfirmation}
+                  onClick={() => setShowConfirmation(!showConfirmation)}
+                >
+                  {showConfirmation ? <EyeOff size={18} /> : <Eye size={18} />}
+                </InputGroupButton>
+              </InputGroupAddon>
+            </InputGroup>
+          </Field>
         )}
         {error && (
-          <p id="form-error" className="form-error" role="alert">
+          <FieldError id="form-error" className="form-error">
             {error}
-          </p>
+          </FieldError>
         )}
         {message && (
           <div className="form-message" role="status">
@@ -200,35 +227,37 @@ export function AuthForm() {
       {mode === "login" ? (
         <>
           <div className="form-divider">
-            <span />
+            <Separator />
             New here?
-            <span />
+            <Separator />
           </div>
           <p className="form-switch">
-            <button
+            <Button
+              variant="link"
               type="button"
               className="text-link"
               onClick={() => changeMode("register")}
             >
               Create your account <ArrowRight size={14} />
-            </button>
+            </Button>
           </p>
         </>
       ) : (
         <>
           <div className="form-divider">
-            <span />
+            <Separator />
             Already have an account?
-            <span />
+            <Separator />
           </div>
-          <button
+          <Button
+            variant="link"
             type="button"
             className="back-link"
             onClick={() => changeMode("login")}
           >
             <ArrowLeft size={16} />
             Back to sign in
-          </button>
+          </Button>
         </>
       )}
       <div className="form-assurance">

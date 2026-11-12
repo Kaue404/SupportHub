@@ -219,3 +219,19 @@ describe("AuthForm", () => {
     expect(screen.getByRole("heading", { name: "Welcome back." })).toBeVisible()
   })
 })
+
+it("focuses inputs through their labels and toggles the password from the keyboard", async () => {
+  const user = setup()
+  await user.click(screen.getByText("Email", { selector: "label" }))
+  expect(screen.getByLabelText("Email")).toHaveFocus()
+  await user.click(screen.getByText("Password", { selector: "label" }))
+  expect(screen.getByLabelText("Password", { exact: true })).toHaveFocus()
+  await user.tab()
+  expect(screen.getByRole("button", { name: "Show password" })).toHaveFocus()
+  await user.keyboard("{Enter}")
+  expect(screen.getByLabelText("Password", { exact: true })).toHaveAttribute(
+    "type",
+    "text"
+  )
+  expect(screen.queryByRole("status")).not.toBeInTheDocument()
+})

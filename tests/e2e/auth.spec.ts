@@ -63,7 +63,11 @@ test("toggles password visibility and submits demo sign-in", async ({
   await page.getByLabel("Email").fill("test@example.com")
   const password = page.getByLabel("Password", { exact: true })
   await password.fill("Test12345")
-  await page.getByRole("button", { name: "Show password", exact: true }).click()
+  await password.press("Tab")
+  await expect(
+    page.getByRole("button", { name: "Show password", exact: true })
+  ).toBeFocused()
+  await page.keyboard.press("Enter")
   await expect(password).toHaveAttribute("type", "text")
   await page.getByRole("button", { name: "Hide password", exact: true }).click()
   await expect(password).toHaveAttribute("type", "password")

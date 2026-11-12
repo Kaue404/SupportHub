@@ -1,13 +1,15 @@
 import Image from "next/image"
 import Link from "next/link"
 import { Headset } from "lucide-react"
+import { ThemeToggle } from "@/components/theme-toggle"
+import { Card } from "@/components/ui/card"
 import { AuthForm } from "@/components/auth-form"
 
 export default function Page() {
   return (
     <main className="auth-page">
-      <section className="auth-story" aria-labelledby="story-title">
-        <Link href="/" className="brand" aria-label="Support Hub — home">
+      <Card role="region" className="auth-story" aria-labelledby="story-title">
+        <Link href="/home" className="brand" aria-label="Support Hub — home">
           <span className="brand-icon">
             <Headset size={24} strokeWidth={1.8} />
           </span>
@@ -40,8 +42,11 @@ export default function Page() {
             <i />
           </span>
         </div>
-      </section>
+      </Card>
       <section className="auth-panel" aria-label="Support Hub access">
+        <div className="panel-top">
+          <ThemeToggle />
+        </div>
         <div className="form-container">
           <AuthForm />
         </div>
