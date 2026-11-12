@@ -5,6 +5,62 @@ async function selectOption(page: Page, label: string, option: string) {
   await page.getByRole("option", { name: option, exact: true }).click()
 }
 
+async function overviewMenuMetrics(page: Page, mobile: boolean) {
+  const sidebar = page.locator(
+    mobile
+      ? '[data-slot="sidebar"][data-mobile="true"]'
+      : '[data-slot="sidebar-container"]'
+  )
+  await sidebar.evaluate(async (element) => {
+    await document.fonts.ready
+    await Promise.allSettled(
+      element.getAnimations().map((animation) => animation.finished)
+    )
+    await Promise.allSettled(
+      element
+        .getAnimations({ subtree: true })
+        .map((animation) => animation.finished)
+    )
+  })
+  return page
+    .getByRole("navigation", { name: "Main navigation" })
+    .getByRole("link", { name: "Overview", exact: true })
+    .evaluate((element) => {
+      const bounds = element.getBoundingClientRect()
+      const icon = element.querySelector("svg")!.getBoundingClientRect()
+      const style = getComputedStyle(element)
+      return {
+        background: style.backgroundColor,
+        geometry: {
+          width: bounds.width,
+          height: bounds.height,
+          padding: [
+            style.paddingTop,
+            style.paddingRight,
+            style.paddingBottom,
+            style.paddingLeft,
+          ],
+          borders: [
+            style.borderTopWidth,
+            style.borderRightWidth,
+            style.borderBottomWidth,
+            style.borderLeftWidth,
+          ],
+          radius: style.borderRadius,
+          gap: style.gap,
+          fontSize: style.fontSize,
+          fontWeight: style.fontWeight,
+          icon: {
+            x: icon.x - bounds.x,
+            y: icon.y - bounds.y,
+            width: icon.width,
+            height: icon.height,
+          },
+        },
+      }
+    })
+}
+
 test("opens home from the brand and keeps filters and pagination in the URL", async ({
   page,
 }) => {
@@ -96,8 +152,10 @@ test("previews conversation, changes priority, resolves and persists a ticket", 
   expect(activeBackground).not.toBe("rgba(0, 0, 0, 0)")
   await page.getByRole("button", { name: "Resolve SH-1048" }).click()
   await expect(page.getByRole("status")).toHaveText("SH-1048 resolved.")
+  await expect(page.getByLabel("Priority for SH-1048")).toBeDisabled()
   await page.reload()
   await expect(page.getByLabel("Priority for SH-1048")).toHaveText("Low")
+  await expect(page.getByLabel("Priority for SH-1048")).toBeDisabled()
   await expect(
     page.getByRole("button", { name: "Resolve SH-1048" })
   ).toBeDisabled()
@@ -106,6 +164,33 @@ test("previews conversation, changes priority, resolves and persists a ticket", 
     (element) => getComputedStyle(element).backgroundColor
   )
   expect(resolvedBackground).not.toBe(activeBackground)
+})
+
+test("keeps resolved tickets read-only and their conversation available", async ({
+  page,
+}) => {
+  await page.goto("/home?status=Resolved")
+  const priorities = page.getByRole("combobox", { name: /^Priority for / })
+  await expect(priorities).toHaveCount(3)
+  for (const priority of await priorities.all()) {
+    await expect(priority).toBeDisabled()
+  }
+  await expect(
+    page.getByRole("button", { name: "Resolve SH-1043" })
+  ).toBeDisabled()
+  await page.getByRole("button", { name: "Export data to CSV" }).click()
+  await expect(page.getByRole("dialog")).toContainText(
+    "I would like to export our ticket history to a CSV file."
+  )
+  await page.keyboard.press("Escape")
+  expect(
+    await page.evaluate(() => localStorage.getItem("support-hub-tickets-v1"))
+  ).toBeNull()
+  await page.reload()
+  await expect(page.getByLabel("Priority for SH-1043")).toBeDisabled()
+  await selectOption(page, "Filter by status", "In progress")
+  await selectOption(page, "Priority for SH-1047", "Low")
+  await expect(page.getByLabel("Priority for SH-1047")).toHaveText("Low")
 })
 
 test("validates a new ticket and displays it after saving", async ({
@@ -236,6 +321,94 @@ test("keeps the sidebar flush with the viewport, collapsible, and the profile at
 })
 
 for (const theme of ["light", "dark"]) {
+  test(`keeps the overview menu the same size when selected and unselected in ${theme} theme`, async ({
+    page,
+  }, testInfo) => {
+    await page.addInitScript(
+      (value) => localStorage.setItem("theme", value),
+      theme
+    )
+    const mobile = testInfo.project.name === "mobile"
+    await page.goto("/home")
+    if (mobile) await page.getByRole("button", { name: "Open sidebar" }).click()
+    const overview = page
+      .getByRole("navigation", { name: "Main navigation" })
+      .getByRole("link", { name: "Overview", exact: true })
+    await expect(overview).toHaveAttribute("aria-current", "page")
+    const selected = await overviewMenuMetrics(page, mobile)
+    expect(selected.geometry.height).toBe(40)
+    let selectedCollapsed
+    if (!mobile) {
+      await page.getByRole("button", { name: "Toggle sidebar" }).click()
+      selectedCollapsed = await overviewMenuMetrics(page, mobile)
+      await page.getByRole("button", { name: "Toggle sidebar" }).click()
+      expect((await overviewMenuMetrics(page, mobile)).geometry).toEqual(
+        selected.geometry
+      )
+    }
+    await page.getByRole("button", { name: "Open profile menu" }).click()
+    await page.getByRole("link", { name: "Profile", exact: true }).click()
+    await expect(page).toHaveURL("/profile")
+    if (mobile) await page.getByRole("button", { name: "Open sidebar" }).click()
+    await expect(overview).not.toHaveAttribute("aria-current", "page")
+    const unselected = await overviewMenuMetrics(page, mobile)
+    expect(unselected.geometry).toEqual(selected.geometry)
+    expect(unselected.background).not.toBe(selected.background)
+    await page.screenshot({
+      path: testInfo.outputPath(`overview-unselected-${theme}.png`),
+      animations: "disabled",
+      fullPage: true,
+    })
+    if (!mobile) {
+      await page.getByRole("button", { name: "Toggle sidebar" }).click()
+      expect((await overviewMenuMetrics(page, mobile)).geometry).toEqual(
+        selectedCollapsed!.geometry
+      )
+    }
+  })
+
+  test(`matches the sidebar to the page background with a single divider in ${theme} theme`, async ({
+    page,
+  }, testInfo) => {
+    await page.addInitScript(
+      (value) => localStorage.setItem("theme", value),
+      theme
+    )
+    await page.goto("/home")
+    const background = await page
+      .locator("body")
+      .evaluate((element) => getComputedStyle(element).backgroundColor)
+    const divider = await page
+      .locator(".hub-topbar")
+      .evaluate((element) => getComputedStyle(element).borderBottomColor)
+    const mobile = testInfo.project.name === "mobile"
+    if (mobile) await page.getByRole("button", { name: "Open sidebar" }).click()
+    const sidebar = page.locator(
+      mobile
+        ? '[data-slot="sidebar"][data-mobile="true"]'
+        : '[data-slot="sidebar-container"]'
+    )
+    const surface = mobile
+      ? sidebar
+      : sidebar.locator('[data-slot="sidebar-inner"]')
+    await expect(surface).toHaveCSS("background-color", background)
+    await expect(sidebar).toHaveCSS("border-right-width", "1px")
+    await expect(sidebar).toHaveCSS("border-right-style", "solid")
+    await expect(sidebar).toHaveCSS("border-right-color", divider)
+    await expect(sidebar).toHaveCSS("box-shadow", "none")
+    await page.screenshot({
+      path: testInfo.outputPath(`sidebar-${theme}.png`),
+      fullPage: true,
+    })
+    if (!mobile) {
+      await sidebar.getByRole("button", { name: "Toggle sidebar" }).click()
+      await expect(sidebar).toHaveCSS("width", "64px")
+      await expect(surface).toHaveCSS("background-color", background)
+      await expect(sidebar).toHaveCSS("border-right-width", "1px")
+      await expect(sidebar).toHaveCSS("border-right-color", divider)
+    }
+  })
+
   test(`uses matching filter surfaces and a neutral row hover in ${theme} theme`, async ({
     page,
   }, testInfo) => {

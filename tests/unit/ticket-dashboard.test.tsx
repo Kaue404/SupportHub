@@ -1,4 +1,4 @@
-import { render, screen, within, fireEvent } from "@testing-library/react"
+import { act, render, screen, within, fireEvent } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, expect, it, vi } from "vitest"
 import { TicketDashboard } from "@/components/ticket-dashboard"
@@ -25,14 +25,58 @@ it("shows the full creation date in month/day/year order using UTC", () => {
   expect(screen.getByRole("cell", { name: "01/01/2027" })).toBeVisible()
 })
 
-it("disables the resolved action while keeping other tickets actionable", async () => {
+it("locks resolved tickets while keeping other tickets editable", async () => {
   render(<TicketDashboard />)
+  const resolvedPriority = screen.getByRole("combobox", {
+    name: "Priority for SH-1043",
+  })
+  expect(resolvedPriority).toBeDisabled()
+  await userEvent.click(resolvedPriority)
+  expect(screen.queryByRole("listbox")).not.toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Resolve SH-1043" })).toBeDisabled()
+  expect(screen.getByLabelText("Priority for SH-1048")).toBeEnabled()
+  expect(screen.getByLabelText("Priority for SH-1047")).toBeEnabled()
   await userEvent.click(screen.getByRole("button", { name: "Resolve SH-1048" }))
+  expect(screen.getByLabelText("Priority for SH-1048")).toBeDisabled()
   expect(screen.getByRole("button", { name: "Resolve SH-1048" })).toBeDisabled()
   expect(
     screen.getByRole("button", { name: "Resolve SH-1048" })
   ).toHaveTextContent("Resolved")
+  expect(screen.getByLabelText("Priority for SH-1047")).toBeEnabled()
   expect(screen.getByRole("button", { name: "Resolve SH-1047" })).toBeEnabled()
+})
+
+it("keeps resolved ticket details available without changing stored data", async () => {
+  render(<TicketDashboard />)
+  await userEvent.click(
+    screen.getByRole("button", { name: "Export data to CSV" })
+  )
+  expect(screen.getByRole("dialog")).toHaveTextContent(
+    initialTickets.find((ticket) => ticket.id === "SH-1043")!.description
+  )
+  expect(localStorage.getItem("support-hub-tickets-v1")).toBeNull()
+})
+
+it("rejects priority changes when a ticket is resolved while its menu is open", async () => {
+  render(<TicketDashboard />)
+  await userEvent.click(screen.getByLabelText("Priority for SH-1048"))
+  const resolvedTickets = initialTickets.map((ticket) =>
+    ticket.id === "SH-1048" ? { ...ticket, status: "Resolved" } : ticket
+  )
+  act(() => {
+    localStorage.setItem(
+      "support-hub-tickets-v1",
+      JSON.stringify(resolvedTickets)
+    )
+    window.dispatchEvent(new Event("storage"))
+  })
+  await userEvent.click(screen.getByRole("option", { name: "Low" }))
+  expect(parseTickets(localStorage.getItem("support-hub-tickets-v1"))).toEqual(
+    resolvedTickets
+  )
+  expect(screen.getByLabelText("Priority for SH-1048")).toHaveTextContent(
+    "Urgent"
+  )
 })
 
 it("clears active filters and pagination while preserving unrelated URL parameters", async () => {
@@ -152,11 +196,16 @@ it("handles corrupt stored data and unsupported URL values", () => {
 it("keeps overview navigation available through repeated sidebar toggles", async () => {
   const user = userEvent.setup()
   render(<TicketDashboard />)
+  const sidebar = screen.getByRole("complementary", {
+    name: "Workspace sidebar",
+  })
+  expect(sidebar.parentElement).toHaveAttribute("data-state", "expanded")
   const toggle = screen.getByRole("button", { name: "Toggle sidebar" })
   expect(toggle.closest('[data-slot="sidebar-header"]')).toContainElement(
     toggle
   )
   await user.click(toggle)
+  expect(sidebar.parentElement).toHaveAttribute("data-state", "collapsed")
   expect(
     screen
       .getByRole("button", { name: "Toggle theme" })
@@ -169,6 +218,7 @@ it("keeps overview navigation available through repeated sidebar toggles", async
   ).toHaveAttribute("href", "/home")
   await user.dblClick(toggle)
   await user.keyboard("{Control>}b{/Control}")
+  expect(sidebar.parentElement).toHaveAttribute("data-state", "expanded")
   expect(screen.getByText("Support workspace")).toBeVisible()
   expect(toggle).toBeEnabled()
   expect(screen.getByRole("button", { name: "Toggle theme" })).toBeEnabled()

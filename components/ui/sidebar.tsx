@@ -23,13 +23,59 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { PanelLeftIcon } from "lucide-react"
+import {
+  defaultSidebarState,
+  parseSidebarCookie,
+  SIDEBAR_COOKIE_NAME,
+  SIDEBAR_MOBILE_COOKIE_NAME,
+  SIDEBAR_COOKIE_MAX_AGE,
+  type SidebarDefaults,
+} from "@/lib/sidebar-state"
 
-const SIDEBAR_COOKIE_NAME = "sidebar_state"
-const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
 const SIDEBAR_WIDTH = "16rem"
 const SIDEBAR_WIDTH_MOBILE = "18rem"
 const SIDEBAR_WIDTH_ICON = "3rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
+
+function subscribeToSidebarState(callback: () => void) {
+  window.addEventListener("sidebar-updated", callback)
+  return () => window.removeEventListener("sidebar-updated", callback)
+}
+
+function readSidebarState(name: string) {
+  try {
+    const value = document.cookie
+      .split(";")
+      .map((cookie) => cookie.trim())
+      .find((cookie) => cookie.startsWith(`${name}=`))
+      ?.slice(name.length + 1)
+    return parseSidebarCookie(value)
+  } catch {
+    return undefined
+  }
+}
+
+function usePersistedSidebarState(name: string, defaultValue: boolean) {
+  const stored = React.useSyncExternalStore(
+    subscribeToSidebarState,
+    () => readSidebarState(name),
+    () => undefined
+  )
+  const [current, setCurrent] = React.useState<boolean>()
+  const value = current ?? stored ?? defaultValue
+  const setValue = React.useCallback(
+    (next: boolean | ((previous: boolean) => boolean)) => {
+      const resolved = typeof next === "function" ? next(value) : next
+      setCurrent(resolved)
+      try {
+        document.cookie = `${name}=${resolved}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}; samesite=lax`
+        window.dispatchEvent(new Event("sidebar-updated"))
+      } catch {}
+    },
+    [name, value]
+  )
+  return [value, setValue] as const
+}
 
 type SidebarContextProps = {
   state: "expanded" | "collapsed"
@@ -42,6 +88,21 @@ type SidebarContextProps = {
 }
 
 const SidebarContext = React.createContext<SidebarContextProps | null>(null)
+const SidebarDefaultsContext = React.createContext(defaultSidebarState)
+
+function SidebarDefaultsProvider({
+  value,
+  children,
+}: {
+  value: SidebarDefaults
+  children: React.ReactNode
+}) {
+  return (
+    <SidebarDefaultsContext.Provider value={value}>
+      {children}
+    </SidebarDefaultsContext.Provider>
+  )
+}
 
 function useSidebar() {
   const context = React.useContext(SidebarContext)
@@ -53,7 +114,7 @@ function useSidebar() {
 }
 
 function SidebarProvider({
-  defaultOpen = true,
+  defaultOpen,
   open: openProp,
   onOpenChange: setOpenProp,
   className,
@@ -66,25 +127,26 @@ function SidebarProvider({
   onOpenChange?: (open: boolean) => void
 }) {
   const isMobile = useIsMobile()
-  const [openMobile, setOpenMobile] = React.useState(false)
+  const defaults = React.useContext(SidebarDefaultsContext)
+  const [openMobile, setOpenMobile] = usePersistedSidebarState(
+    SIDEBAR_MOBILE_COOKIE_NAME,
+    defaults.openMobile
+  )
 
   // This is the internal state of the sidebar.
   // We use openProp and setOpenProp for control from outside the component.
-  const [_open, _setOpen] = React.useState(defaultOpen)
+  const [_open, _setOpen] = usePersistedSidebarState(
+    SIDEBAR_COOKIE_NAME,
+    defaultOpen ?? defaults.open
+  )
   const open = openProp ?? _open
   const setOpen = React.useCallback(
     (value: boolean | ((value: boolean) => boolean)) => {
       const openState = typeof value === "function" ? value(open) : value
-      if (setOpenProp) {
-        setOpenProp(openState)
-      } else {
-        _setOpen(openState)
-      }
-
-      // This sets the cookie to keep the sidebar state.
-      document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
+      _setOpen(openState)
+      setOpenProp?.(openState)
     },
-    [setOpenProp, open]
+    [_setOpen, setOpenProp, open]
   )
 
   // Helper to toggle the sidebar.
@@ -676,6 +738,7 @@ function SidebarMenuSubButton({
 
 export {
   Sidebar,
+  SidebarDefaultsProvider,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,

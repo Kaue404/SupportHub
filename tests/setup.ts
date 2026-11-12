@@ -2,7 +2,12 @@ import "@testing-library/jest-dom/vitest"
 import { cleanup } from "@testing-library/react"
 import { afterEach, vi } from "vitest"
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  for (const name of ["sidebar_state", "sidebar_mobile_state"]) {
+    document.cookie = `${name}=; path=/; max-age=0`
+  }
+})
 
 Object.defineProperty(window, "matchMedia", {
   writable: true,
